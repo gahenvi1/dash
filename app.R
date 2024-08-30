@@ -34,7 +34,7 @@ extrair_top_materias <- function(dataframe, gerente_da_hora){
 }
 
 
-#setwd("~/Documents/ESTAT/Controle de Atrasos")
+#setwd("~/Documents/ESTAT/Controle de Atrasos/dash")
 #source("~/Documents/ESTAT/Controle de Atrasos/pegando_dados_pipefy.R") # Extraindo o bd do pipefy, mas tenho medo de na hora de postar isso não funcionar, de qualuqer maneira, podemos rodar isso antes de postar o site
 
 
@@ -97,9 +97,14 @@ ui = function(request){
         tabItem(tabName = "progresso",
                 fluidRow(box(width = 20,textOutput(outputId = "gg1"),
                              downloadButton('downloadPlot1', 'Download'),
-                             plotlyOutput(outputId = "gantt1", height = 600, width="100%")))
-
-        ),
+                             plotlyOutput(outputId = "gantt1", height = 600, width="100%")),
+                         
+                         
+                         box(width = 20,textOutput(outputId = "gg2"),
+                             downloadButton('downloadPlot2', 'Download'),
+                             plotlyOutput(outputId = "gantt2", height = 600, width="100%"))
+                         
+                         )),
 
         #Alterar essa aba para ser referente a cada projeto em específico com infos do pipefy sobre ele ou filtragem de gerentes/areas/projetos de x maneira
         tabItem(tabName = "estudo-projetistas",
@@ -141,7 +146,7 @@ ui = function(request){
                 br(),
                 fluidRow(
                   box(width = 20,h2("Código"),
-                      h4(p("O código feito para o desenvolvimento desse aplicativo, como também o primeiro banco teste estão disponíveis no ",tags$a(href=" https://www.nature.com/articles/s41746-019-0180-3","Github.")))
+                      h4(p("O código feito para o desenvolvimento desse aplicativo, como também o primeiro banco teste estão disponíveis no ",tags$a(href="https://github.com/gahenvi1/dash","Github.")))
                   )
                 ),
                 br(),
@@ -170,8 +175,8 @@ ui = function(request){
                          p("ESTAT (https://estat.com.br)")))
                 ),
                 br(),
-                br()
-                #tags$img( height = 200, width = 450, src= "https://www.staffnet.manchester.ac.uk/brand/visual-identity/logo/logo_big.gif") #adicionar imagem da estat??
+                br(),
+                tags$img( height = 200, width = 200, src= "https://media.licdn.com/dms/image/C4E0BAQEPOt7N9K8hhQ/company-logo_200_200/0/1638486169145/estat_consultoria_logo?e=2147483647&v=beta&t=lvbmod9aRikwxQtMlq8bvwFwXknEKppmJv6yu0V4qgA") #adicionar imagem da estat??
                 
         )
         
@@ -317,8 +322,10 @@ server <- function(input, output, session){
   
   output$projetos_atrasados <- renderDT({
     
-    df_atrasados <- projetos_atrasados %>%
-      filter(atraso > 0) %>%
+    df_atrasados <- df_projetos %>%
+      filter(fase_projeto == "Execução") %>%
+      mutate(atraso = bizdays(data_vencimento, today())) %>%
+      filter(atraso > 0)  %>%
       select(nome_projeto, atraso, gerente) %>%
       arrange(desc(atraso))
     
@@ -395,6 +402,73 @@ server <- function(input, output, session){
       htmlwidgets::saveWidget(as_widget(createPlot1()), file)
     }
   )
+  
+  output$gg2 <- renderText({ paste("A seguinte Gantt Chart feita com ggplot2 para os projetos por vir(datas esperadas): ")})
+  
+  createPlot2 <- reactive({
+
+    tasks <- df_projetos %>% select("nome_projeto","inicio_execucao","data_vencimento", "gerente") %>%
+      mutate(gerente = str_split(gerente, ",\\s*")) %>%
+      unnest(gerente) %>%
+      na.omit() 
+    
+    
+    
+    
+    tasks.long <- tasks %>%
+      gather(date.type, task.date, -c(nome_projeto, gerente)) %>%
+      arrange(date.type, task.date) %>%
+      mutate(nome_projeto = factor(nome_projeto, levels=rev(unique(nome_projeto)), ordered=TRUE))
+    
+    # Calculate where to put the dotted lines that show up every three entries
+    x.breaks <- seq(length(tasks$Task) + 0.5 - 3, 0, by=3)
+    
+    theme_gantt <- function(base_size=11) {
+      theme_bw(base_size) %+replace%
+        theme(panel.background = element_rect(fill="#ffffff", colour=NA),
+              axis.title.x=element_text(vjust=-0.2), axis.title.y=element_text(vjust=1.5),
+              title=element_text(vjust=1.2),
+              panel.border = element_blank(), axis.line=element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.grid.major.y = element_blank(),
+              panel.grid.major.x = element_line(size=0.5, colour="grey80"),
+              axis.ticks = element_blank(),
+              legend.position = "bottom", 
+              axis.title = element_text(size=rel(0.8)),
+              strip.text = element_text(size=rel(1)),
+              strip.background = element_rect(fill="#ffffff", colour=NA),
+              panel.spacing.y = unit(1.5, "lines"),
+              legend.key = element_blank())
+    }
+    
+    
+    tasks.long <- na.omit(tasks.long)
+    plot2 <- ggplot(tasks.long) +
+      aes(x=nome_projeto, y=task.date, colour=gerente) +
+      geom_line(linewidth=6) +
+      geom_vline(xintercept=x.breaks, colour="grey80", linetype="dotted") +
+      guides(colour=guide_legend(title=NULL)) +
+      coord_flip() +
+      labs(y = "Datas de começo e fim", x = "Projeto")+
+      theme_gantt() + theme(axis.text.x=element_text(angle=45, hjust=1))
+    
+    ggplotly(plot2)
+    
+  })
+  
+  output$gantt2 <- renderPlotly({
+    print(createPlot2())
+  })
+  
+  output$downloadPlot2 <- downloadHandler(
+    filename = "ShinyGanttChart2.html",
+    content = function(file){
+      htmlwidgets::saveWidget(as_widget(createPlot2()), file)
+    }
+  )
+  
+  
+  
   
   
   output$principais_materias <- renderDT({
