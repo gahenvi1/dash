@@ -1,7 +1,7 @@
 suppressPackageStartupMessages({
   library(pacman)
   p_load(shiny, plotly, shinydashboard, dplyr, readxl, tidyr, ggplot2, data.table, shinyWidgets, DT, htmlwidgets, reshape2, RColorBrewer,
-         tidyverse, lubridate, scales, rhandsontable, shinythemes, bslib, vistime, shinyscreenshot, readxl, bizdays)
+         tidyverse, lubridate, scales, rhandsontable, shinythemes, bslib, vistime, shinyscreenshot, readxl, bizdays, kableExtra)
 })
 
 
@@ -39,20 +39,24 @@ extrair_top_materias <- function(dataframe, gerente_da_hora){
 
 
 
-df_projetos <- read_excel("banco_controle_de_atrasos.xlsx")
-names(df_projetos) <- c("nome_projeto", "fase_projeto", "etiquetas", "data_vencimento", "ods", "gerente", "comercial", "gestor", "valor_projeto", "materias", "inicio_execucao", "fim_execucao", "tempo_total_execucao")
-
-df_projetos <- df_projetos %>%
-  mutate(pf_pj = str_extract(nome_projeto, "\\w{2}"), 
-         atraso = bizdays(data_vencimento, fim_execucao)) #atraso é positivo, numeros negativos sao datas adiantadas
-         
-
-bd_gerentes <- df_projetos %>%
-  mutate(gerente = str_split(gerente, ",\\s*")) %>%
-  unnest(gerente)  
+banco_recem_atualizado <- read_excel("banco_controle_de_atrasos.xlsx")
+# names(banco_recem_atualizado) <- c("nome_projeto", "fase_projeto", "etiquetas", "data_vencimento", "ods", "gerente", "comercial", "gestor", "valor_projeto", "materias", "inicio_execucao", "fim_execucao", "tempo_total_execucao")
+# 
+# 
+# 
+# banco_recem_atualizado <- banco_recem_atualizado %>%
+#   mutate(pf_pj = str_extract(nome_projeto, "\\w{2}"), 
+#          atraso = bizdays(data_vencimento, fim_execucao)) #atraso é positivo, numeros negativos sao datas adiantadas
+#          
 
 
-a<-unique(na.omit(df_projetos)$nome_projeto)
+
+
+
+
+
+nome_projetos<-unique(banco_recem_atualizado$`Título`) %>%
+  sort()
 
 Sys.getlocale()
 
@@ -69,6 +73,9 @@ ui = function(request){
       menuItem("Estudo", icon = icon("chart-line"),
                menuSubItem("Projetistas", tabName = "estudo-projetistas"),
                menuSubItem("Projetos", tabName = "estudo-projetos")),
+      menuItem("Upload banco", icon = icon("upload"),
+               fileInput("upload", "Upload banco", accept = c(".csv", ".xlsx"), width = "100%")
+      ),
       menuItem("Sobre esse aplicativo shiny", tabName = "info-geral", icon = icon("circle-info")))),
     
     dashboardBody(
@@ -120,11 +127,19 @@ ui = function(request){
                 tabsetPanel(
                   tabPanel("Card do Pipefy", 
                            fluidRow(
-                             box(DTOutput("card-pipefy"), width = 12, status = "primary")
-                  )),
+                             box(
+                               width = 12, status = "primary",
+                               selectInput("filter_pipefy", "Projeto", choices = nome_projetos), 
+                               htmlOutput("card_pipefy"), 
+                               plotlyOutput("timeline_unico_projeto"))
+                           )),
                   tabPanel("Projetos", 
                            fluidRow(
-                             box(plotlyOutput("atraso_projeto"), width = 12, status = "warning")
+                             box(plotlyOutput("atraso_projeto", height = "450px"), width = 12, status = "warning")
+                           )),
+                  tabPanel("ODS", 
+                           fluidRow(
+                             box(plotlyOutput("ods_barras", height = "450px"), width = 12, status = "warning")
                            ))
                   )),
                   
@@ -189,9 +204,55 @@ ui = function(request){
 
 server <- function(input, output, session){
   
+  
+  df_projetos <- reactive({
+    if (is.null(input$upload)) {
+      # No file uploaded, use default dataset
+      df <- banco_recem_atualizado
+    } else {
+      # File uploaded, read and use that data
+      file <- input$upload
+      ext <- tools::file_ext(file$name)
+      
+      if (ext == "csv") {
+        df <- read.csv(file$datapath)
+      } else if (ext == "xlsx") {
+        df <- read_excel(file$datapath)
+      } else {
+        showNotification("Unsupported file type", type = "error")
+        return(NULL)
+      }
+    }
+    
+    
+    names(df) <- c("nome_projeto", "fase_projeto", "etiquetas", "data_vencimento", "ods", "gerente", "comercial", "gestor", "valor_projeto", "materias", "inicio_execucao", "fim_execucao", "tempo_total_execucao")
+    
+    
+    
+    df <- df %>%
+      mutate(pf_pj = str_extract(nome_projeto, "\\w{2}"), 
+             atraso = bizdays(data_vencimento, fim_execucao)) %>%#atraso é positivo, numeros negativos sao datas adiantadas
+      arrange(-desc(fase_projeto))  
+    
+    
+    df  
+    
+    
+  })
+  
+  
+  bd_gerentes <- reactive({
+    df_projetos() %>%
+      mutate(gerente = str_split(gerente, ",\\s*")) %>%
+      unnest(gerente)  
+    
+  })
+  
+  
+  
   output$completos <- renderValueBox({
     
-    projetos_executados <- df_projetos %>%
+    projetos_executados <- df_projetos() %>%
       filter(fase_projeto == "Finalizados™") 
     
     valueBox(value = tags$p(NROW(projetos_executados), style = "font-size: 150%;"), 
@@ -200,7 +261,7 @@ server <- function(input, output, session){
     
   output$em_progresso <- renderValueBox({
     
-    projetos_executando <- df_projetos %>%
+    projetos_executando <- df_projetos() %>%
       filter(fase_projeto == "Execução")
     
     valueBox(value = tags$p(NROW(projetos_executando), style = "font-size: 150%;"),  
@@ -209,7 +270,7 @@ server <- function(input, output, session){
   
   output$atrasados <- renderValueBox({
     
-    projetos_atrasados <- df_projetos %>%
+    projetos_atrasados <- df_projetos() %>%
       filter(fase_projeto == "Execução") %>%
       mutate(atraso = bizdays(data_vencimento, today())) %>%
       filter(atraso > 0) 
@@ -221,7 +282,7 @@ server <- function(input, output, session){
   
   output$nps <- renderValueBox({
     
-    no_aguardo_projetos <- df_projetos %>%
+    no_aguardo_projetos <- df_projetos() %>%
       filter(fase_projeto %in% c("NPS", "Forms de feedback")) 
     
     valueBox(value = tags$p(NROW(no_aguardo_projetos), style = "font-size: 150%;"),   
@@ -240,16 +301,16 @@ server <- function(input, output, session){
   
   output$tbl_geral <- renderDT({
     
-    df_projetos1 <- df_projetos %>%
+    banco <- df_projetos() %>%
       select(c(nome_projeto, inicio_execucao, data_vencimento, fim_execucao, gerente, pf_pj, materias, fase_projeto, atraso)) %>%
       mutate(
         data_vencimento =  format(ymd_hms(data_vencimento), "%d-%m-%Y"),
         inicio_execucao = format(ymd_hms(inicio_execucao), "%d-%m-%Y"),
         fim_execucao = format(ymd_hms(fim_execucao), "%d-%m-%Y")) 
     
-    names(df_projetos1) <- c("Projeto", "Data de Início", "Data de Fim(Esperado)", "Data de Fim(Observado)", "Gerentes", "PF/PJ", "Matérias", "Fase", "Atraso(dias úteis)*")
+    names(banco) <- c("Projeto", "Data de Início", "Data de Fim(Esperado)", "Data de Fim(Observado)", "Gerentes", "PF/PJ", "Matérias", "Fase", "Atraso(dias úteis)*")
     
-    datatable(df_projetos1, options = list(pageLength = 12, language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")))
+    datatable(banco, options = list(pageLength = 12, language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")))
     
   })
   
@@ -257,7 +318,7 @@ server <- function(input, output, session){
   
   output$fase_do_projeto <- renderPlotly({
     
-    df_fases <- df_projetos %>% 
+    df_fases <- df_projetos() %>% 
       group_by(fase_projeto) %>% 
       summarise("Quantidade" = n()) %>%
       filter(`Quantidade` != 0)
@@ -272,7 +333,7 @@ server <- function(input, output, session){
     
   output$pj_pf_projeto <- renderPlotly({
     
-    df_fases <- df_projetos %>% 
+    df_fases <- df_projetos() %>% 
       group_by(pf_pj) %>% 
       summarise("Quantidade" = n()) %>%
       filter(`Quantidade` != 0)
@@ -287,7 +348,7 @@ server <- function(input, output, session){
   
   output$tipos_de_projetos <- renderPlotly({
     
-   df_projetos %>%
+   df_projetos() %>%
       mutate(topicos = str_split(materias, ",\\s*")) %>%
       unnest(topicos) %>%
       group_by(topicos) %>%
@@ -307,7 +368,7 @@ server <- function(input, output, session){
   
   output$proximos_prazos <- renderDT({
     
-    df_prazo_chegando <- df_projetos %>%
+    df_prazo_chegando <- df_projetos() %>%
       filter(fase_projeto %in% c("Caixa de entrada", "Execução")) %>%
       mutate(dias_uteis_faltando = bizdays(today(), data_vencimento)) %>%  
       select(nome_projeto, data_vencimento, dias_uteis_faltando, gerente) %>%
@@ -322,7 +383,7 @@ server <- function(input, output, session){
   
   output$projetos_atrasados <- renderDT({
     
-    df_atrasados <- df_projetos %>%
+    df_atrasados <- df_projetos() %>%
       filter(fase_projeto == "Execução") %>%
       mutate(atraso = bizdays(data_vencimento, today())) %>%
       filter(atraso > 0)  %>%
@@ -343,7 +404,7 @@ server <- function(input, output, session){
     # req(input$hot)
     # 
     # tasks <- hot_to_r(input$hot)
-    tasks <- df_projetos %>% select("nome_projeto","inicio_execucao","fim_execucao", "gerente") %>%
+    tasks <- df_projetos() %>% select("nome_projeto","inicio_execucao","fim_execucao", "gerente") %>%
       mutate(gerente = str_split(gerente, ",\\s*")) %>%
       unnest(gerente) %>%
       na.omit() 
@@ -407,7 +468,9 @@ server <- function(input, output, session){
   
   createPlot2 <- reactive({
 
-    tasks <- df_projetos %>% select("nome_projeto","inicio_execucao","data_vencimento", "gerente") %>%
+    tasks <- df_projetos() %>% 
+      filter(fase_projeto %in% c("Caixa de entrada", "Execução", "Fase de espera")) %>%
+      select("nome_projeto","inicio_execucao","data_vencimento", "gerente") %>%
       mutate(gerente = str_split(gerente, ",\\s*")) %>%
       unnest(gerente) %>%
       na.omit() 
@@ -474,10 +537,10 @@ server <- function(input, output, session){
   output$principais_materias <- renderDT({
 
     
-    gerentes <- unique(bd_gerentes$gerente)
+    gerentes <- unique(bd_gerentes()$gerente)
     
     
-    df_ordem_materias <- map(gerentes, function(x) extrair_top_materias(df_projetos, x))  
+    df_ordem_materias <- map(gerentes, function(x) extrair_top_materias(df_projetos(), x))  
     
     df_ordem_materias <- do.call(rbind, lapply(df_ordem_materias, `length<-`, max(lengths(df_ordem_materias)))) %>%
       as.data.frame(stringAsFactors = FALSE) %>%
@@ -495,7 +558,7 @@ server <- function(input, output, session){
   
   output$frequencia_projeto_x_gerente <- renderPlotly({
   
-  df_freq_projetista <- df_projetos %>%
+  df_freq_projetista <- df_projetos() %>%
     mutate(gerente = str_split(gerente, ",\\s*")) %>%
     unnest(gerente) %>%
     group_by(gerente) %>%
@@ -527,7 +590,7 @@ server <- function(input, output, session){
   output$linha_temporal_projetos_gerenciados <- renderPlotly({
     
     # Expandir as datas de início e fim para obter uma sequência de datas
-    projetos_expandidos <- bd_gerentes %>%
+    projetos_expandidos <- bd_gerentes() %>%
       filter(!is.na(inicio_execucao) & !is.na(fim_execucao)) %>%
       rowwise() %>%
       mutate(periodo = list(seq(inicio_execucao, fim_execucao, by = "day"))) %>%
@@ -549,7 +612,98 @@ server <- function(input, output, session){
     
     
   }) 
+  
+  
+  output$card_pipefy <- renderUI({
+    card_pipefy <- df_projetos() %>%
+      filter(nome_projeto == input$filter_pipefy) %>%
+      setNames(c("Nome", "Fase", "Etiquetas", "Vencimento", "ODS", 
+                 "Gerente de Projetos", "Gerente de Comercial", "Acessor de Gestão", "Valor", "Matérias", "Execução(início)", "Execução(fim)", 
+                 "Duração da Execução", "Tipo", "Atraso")) %>%
+      t() %>%
+      as.data.frame()
     
+    names(card_pipefy) <- NULL
+    
+    HTML(kable(card_pipefy, format = "html") %>%
+           kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+           column_spec(1, bold = TRUE)
+    )
+    
+    
+  })
+  
+  output$timeline_unico_projeto <- renderPlotly({
+    vistime_data <- df_projetos() %>%
+      filter(nome_projeto == input$filter_pipefy) 
+    
+    
+    timeline_data <- data.frame(event = c("Observado", "Esperado"),
+                                start = c(vistime_data$inicio_execucao, vistime_data$inicio_execucao), 
+                                end = c(vistime_data$fim_execucao, vistime_data$data_vencimento),
+                                color = c("#ff7f0e", "#1f77b4")) %>%
+      na.omit()
+    
+    
+    
+    vistime(timeline_data)
+  })
+  
+  
+  output$atraso_projeto <- renderPlotly({
+    banco_graf_atrasos <- df_projetos() 
+    
+    banco_graf_atrasos$nome_projeto <- reorder(banco_graf_atrasos$nome_projeto, banco_graf_atrasos$atraso)
+    
+    
+    plot_ly(data = banco_graf_atrasos, 
+            x = ~nome_projeto, 
+            y = ~atraso,
+            color = ~gerente,
+            text = ~paste(nome_projeto, "<br>Gerente: ", gerente, "<br>Atraso: ", atraso),
+            hoverinfo = "text",
+            type = 'bar') %>%
+      layout(title = "Atraso dos projetos com execução finalizada",
+             xaxis = list(title = "Nome do Projeto"),
+             yaxis = list(title = "Dias de Atraso"),
+             showlegend = FALSE,
+             annotations = list(
+               x = 0.5,
+               y = 1.05,
+               text = "Valores positivos é atraso, enquanto valores negativos são entregas adiantadas",
+               showarrow = FALSE,
+               xref = "paper",
+               yref = "paper",
+               xanchor = "center",
+               yanchor = "top",
+               font = list(size = 12, color = "gray")
+             ))
+  })
+  
+  
+  output$ods_barras <- renderPlotly({
+    banco_graf_ods <- df_projetos() %>%
+      group_by(ods) %>%
+      summarise(qtd = n())
+    
+    banco_graf_ods$ods <- reorder(banco_graf_ods$ods, banco_graf_ods$qtd)
+    
+    
+    plot_ly(data = banco_graf_ods, 
+            x = ~ods, 
+            y = ~qtd,
+            color = ~ods,
+            type = 'bar') %>%
+      layout(title = "Frequência de cada ODS",
+             xaxis = list(title = "ODS"),
+             yaxis = list(title = "Frequência Absoluta"),
+             showlegend = FALSE)
+  })
+  
+  
+  
+  
+  
 }
 
 
