@@ -1,0 +1,96 @@
+---
+title: ''
+subtitle: ""
+author: ""
+date: ""
+output:
+  pdf_document:
+  fig_crop: false
+highlight: tango
+number_sections: false
+fig_caption: true
+keep_tex: true
+includes:
+  in_header: Estilo.sty
+classoption: a4paper
+always_allow_html: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=tex}
+\begin{center}
+{\Large
+  DEPARTAMENTO DE ESTATÍSTICA} \\
+\vspace{0.5cm}
+\begin{figure}[!t]
+\centering
+\includegraphics[width=9cm, keepaspectratio]{logo-UnB.eps}
+\end{figure}
+\vskip 1em
+{\large
+  12 de junho de 2024}
+\vskip 3em
+{\LARGE
+  \textbf{Lista 5: Pacote \emph{Shiny} e Dados Georeferenciados}} \\
+\vskip 1em
+{\Large
+  Prof. Guilherme Rodrigues} \\
+\vskip 1em
+{\Large
+  João Gabriel Rodrigues Reis (Estágio em docência)} \\
+\vskip 1em
+{\Large
+  Computação em Estatística 2 - R} \\
+\vskip 1em
+\end{center}
+```
+\vskip 5em
+
+<!-- [label={(\Alph*)}] -->
+
+```{=tex}
+\begin{enumerate}
+\item \textbf{O aluno poderá consultar materiais relevantes disponíveis na internet, tais como livros, \emph{blogs} e artigos}.
+\item \textbf{O trabalho é individual. Suspeitas de plágio e compartilhamento de soluções serão tratadas com rigor.}
+\item \textbf{Os códigos \emph{R} utilizados devem ser disponibilizados na integra.}
+\item \textbf{O aluno deverá enviar o trabalho até a data especificada na plataforma Microsoft Teams.}
+\item \textbf{Escreva seu código com esmero, evitando operações redundantes, visando eficiência computacional, otimizando o uso de memória, comentando os resultados e usando as melhores práticas em programação.}
+\end{enumerate}
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=T, message=F, warning=F, error=F)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load("gapminder", "tidyverse", "microbenchmark", "stringi")
+options(scipen=0)
+```
+
+\newpage
+
+Devido a ampla disponibilidade de dispositivos de GPS e da maturidade alcançada por plataformas como o Googlemaps, dados georeferenciados se tornam cada vez mais comuns. É imperativo, portanto, conhecer as ferramentas disponíveis para a coleta e a representação de dados dessa natureza.
+
+Nesse trabalho, usaremos dados oficiais sobre infrações de transito no DF, os quais foram obtidos na página http://www.dados.df.gov.br/dataset/infracoes-transito. Os dados originais estão disponivéis nos arquivos da tarefa criada no página da equipe na plataforma Microsoft Teams. Para responder aos itens abaixo, considere apenas o arquivo referente a maio de 2022 e as ocorrências em que as coordenadas geográficas foram registradas.
+
+**Atenção**: Não é preciso criar nenhum relatório em *pdf* ou *html*. Basta que enviem, por meio da atividade, todos os arquivos usados para a criação do aplicativo Shiny. Incluam ainda um arquivo chamado "README.txt" com o endereço que leve ao visualizador online do aplicativo no site https://www.shinyapps.io. 
+
+\vspace{.3cm}
+## Questão 1)
+
+**a)** Represente os dados adicionando bolhas (círculos) ao mapa. Cada tipo de infração deve ser representado por uma cor, e o tamanho do círculo deve ser proporcional ao número de ocorrências no ponto geográfico. Basta considerar as 10 infrações com maior incidência.
+
+**b)** Considerando a infração mais recorrente, construa um mapa de calor que represente a distribuição espacial dos dados. Dica: Use o pacote `leaflet.extras`.
+
+**c)** Refaça o item b) considerando apenas as infrações registradas durante a noite. Use um mapa ("tile") que tenha um aspecto noturno.
+
+\vspace{.3cm}
+## Questão 2)
+
+**a)** Construa um aplicativo Shiny que permita ao usuário recriar o mapa da Questão 1a) selecionando os tipos de infração que devem ser exibidos.  
+
+\vspace{.3cm}
+## Questão **Bônus**
+
+**a)** Adicione ao mapa criado no item 1a) um \emph{popup} para cada delegacia do DF. Esse item deve ser resolvido fazendo-se uma consulta ao Google usando o pacote *googleway*.
+
+**b)** Ainda considerando o mapa criado anteriormente, adicione uma linha que indique o trajeto entre o local da $i$-ésima infração e o Departamento de Estatística da UnB, onde $i$ representa os 3 últimos dígitos de sua matrícula. 

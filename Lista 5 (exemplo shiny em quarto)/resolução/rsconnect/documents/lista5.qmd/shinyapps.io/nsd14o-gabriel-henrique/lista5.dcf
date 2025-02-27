@@ -1,0 +1,13 @@
+name: lista5
+title:
+username: nsd14o-gabriel-henrique
+account: nsd14o-gabriel-henrique
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12780199
+bundleId: 9127359
+url: https://nsd14o-gabriel-henrique.shinyapps.io/lista5/
+version: 1
+quarto_version: 1.4.555
+quarto_engines: knitr
+serverRender: FALSE
