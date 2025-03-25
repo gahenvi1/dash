@@ -38,7 +38,7 @@ extrair_top_materias <- function(dataframe, gerente_da_hora){
 #source("~/Documents/ESTAT/Controle de Atrasos/pegando_dados_pipefy.R") # Extraindo o bd do pipefy, mas tenho medo de na hora de postar isso não funcionar, de qualuqer maneira, podemos rodar isso antes de postar o site
 
 
-
+df_nps <- read_excel("nps_csat_2025_21-03-2025.xlsx")
 banco_recem_atualizado <- read_excel("banco_controle_de_atrasos.xlsx")
 # names(banco_recem_atualizado) <- c("nome_projeto", "fase_projeto", "etiquetas", "data_vencimento", "ods", "gerente", "comercial", "gestor", "valor_projeto", "materias", "inicio_execucao", "fim_execucao", "tempo_total_execucao")
 # 
@@ -72,7 +72,8 @@ ui = function(request){
       menuItem("Progresso", tabName = "progresso", icon = icon("bars-progress")),
       menuItem("Estudo", icon = icon("chart-line"),
                menuSubItem("Projetistas", tabName = "estudo-projetistas"),
-               menuSubItem("Projetos", tabName = "estudo-projetos")),
+               menuSubItem("Projetos", tabName = "estudo-projetos"),
+               menuSubItem("NPS", tabName = "nps_csat_2025_21-03-2025")),
       menuItem("Upload banco", icon = icon("upload"),
                fileInput("upload", "Upload banco", accept = c(".csv", ".xlsx"), width = "100%")
       ),
@@ -90,10 +91,10 @@ ui = function(request){
                   valueBoxOutput("nps", width = 3)
                 ),
                 fluidRow(
-                  box(plotlyOutput("fase_do_projeto"), width = 4, title = "Fase do Projeto", solidHeader = TRUE, status = "success"),
-                  box(plotlyOutput("pj_pf_projeto"), width = 4, title = "Tipo de Projeto", solidHeader = TRUE, status = "success"),
-                  box(plotlyOutput("ods_barras"), width = 4, title = "ODS", solidHeader = TRUE, status = "success"),          # Novo gráfico
-                  box(plotlyOutput("capacidade_funcionarios"), width = 4, title = "Capacidade", solidHeader = TRUE, status = "warning")  # Novo gráfico
+                  box(plotlyOutput("fase_do_projeto"), width = 6, title = "Fase do Projeto", solidHeader = TRUE, status = "success"),
+                  box(plotlyOutput("pj_pf_projeto"), width = 6, title = "Tipo de Projeto", solidHeader = TRUE, status = "success"),
+                  box(plotlyOutput("ods_barras"), width = 12, title = "ODS", solidHeader = TRUE, status = "success"), 
+                  box(plotlyOutput("capacidade_funcionarios"), width = 12, title = "Capacidade", solidHeader = TRUE, status = "warning") 
                 ),
                 fluidRow(
                   box(plotlyOutput("tipos_de_projetos"), width = 12, title = "Matérias", solidHeader = TRUE, status = "primary"),
@@ -126,12 +127,13 @@ ui = function(request){
                   tabPanel("Projetos", 
                            fluidRow(
                              box(plotlyOutput("atraso_projeto", height = "450px"), width = 12, status = "warning")
-                           )),
-                  tabPanel("ODS", 
-                           fluidRow(
-                             box(plotlyOutput("ods_barras", height = "450px"), width = 12, status = "warning")
                            ))
                   )),
+        tabItem(tabName = "nps_csat_2025_21-03-2025",
+                
+                fluidRow(
+                  box(downloadButton("downloadData", "Download"), DTOutput("tbl_nps"), width = 12, title = "Planilha", solidHeader = TRUE, status = "info")
+                )),
                   
         tabItem(tabName = "info-geral",
                 fluidRow(
@@ -189,6 +191,22 @@ ui = function(request){
     ))
   
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -263,37 +281,31 @@ server <- function(input, output, session){
     
     # Novo gráfico de capacidade 
     output$capacidade_funcionarios <- renderPlotly({
-      req(df_projetos())
-      
-      capacidade <- df_projetos() %>%
-        mutate(gerente = str_split(gerente, ",\\s*")) %>%
-        unnest(gerente) %>%
-        group_by(gerente) %>%
-        summarise(
-          projetos = n(),
-          capacidade_max = 4  # Valor hipotético para capacidade de projetos
-        )
-      
-      plot_ly(capacidade) %>%
-        add_bars(
-          x = ~gerente,
-          y = ~projetos,
-          name = "Ativos",
-          marker = list(color = "#FFA07A")
-        ) %>%
-        add_bars(
-          x = ~gerente,
-          y = ~capacidade_max,
-          name = "Capacidade",
-          marker = list(color = "#3CB371", opacity = 0.3)
-        ) %>%
-        layout(
-          barmode = "overlay",
-          title = "Projetos x Capacidade por Gerente",
-          xaxis = list(title = ""),
-          yaxis = list(title = "Quantidade")
-        )
-    })
+  req(df_projetos())
+  
+  capacidade <- df_projetos() %>%
+    mutate(gerente = str_split(gerente, ",\\s*")) %>%
+    unnest(gerente) %>%  
+    group_by(gerente) %>%
+    summarise(
+      projetos = n()
+    ) %>%
+    ungroup()
+  
+  plot_ly(capacidade) %>%
+    add_bars(
+      x = ~gerente,
+      y = ~projetos,
+      name = "Ativos",
+      marker = list(color = "#FFA07A")
+    ) %>%
+    layout(
+      barmode = "overlay",
+      title = "Projetos x Capacidade por Gerente",
+      xaxis = list(title = ""),
+      yaxis = list(title = "Quantidade")
+    )
+})
     
     
   output$completos <- renderValueBox({
@@ -360,6 +372,21 @@ server <- function(input, output, session){
     
   })
   
+  
+  output$tbl_nps <- renderDT({
+    
+    banco <- df_nps() %>%
+      select(c(nome_projeto, inicio_execucao, data_vencimento, fim_execucao, gerente, pf_pj, materias, fase_projeto, atraso)) %>%
+      mutate(
+        data_vencimento =  format(ymd_hms(data_vencimento), "%d-%m-%Y"),
+        inicio_execucao = format(ymd_hms(inicio_execucao), "%d-%m-%Y"),
+        fim_execucao = format(ymd_hms(fim_execucao), "%d-%m-%Y")) 
+    
+    names(banco) <- c("Projeto", "Data de Início", "Data de Fim(Esperado)", "Data de Fim(Observado)", "Gerentes", "PF/PJ", "Matérias", "Fase", "Atraso(dias úteis)*")
+    
+    datatable(banco, options = list(pageLength = 12, language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")))
+    
+  })
   
   
   output$fase_do_projeto <- renderPlotly({
@@ -746,9 +773,31 @@ server <- function(input, output, session){
              showlegend = FALSE)
   })
   
-  
-  
-  
+
+  output$tbl_nps <- renderDT({
+    banco <- df_nps %>%
+      select(
+        `Código`,
+        `Título`,
+        `Fase atual`,
+        `Criador`,
+        `Criado em`,
+        `Atualizado em`,
+        `Vencido`,
+        `Qual o seu nome?`,
+        `O quão satisfeito(a) você diria que ficou com nossos serviços e atendimento?`,
+        `De 0 a 10, o quanto o(a) senhor(a) recomendaria os serviços da ESTAT Consultoria para alguém?`
+      )
+    names(banco) <- c(
+      "Código", "Título", "Fase Atual",
+      "Criador", "Criado em", "Atualizado em","Vencido",
+      "Nome", "Satisfação", "Recomendação"
+    )
+    datatable(banco,
+              options = list(pageLength = 12,
+                             language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")),
+              rownames = FALSE)
+  })
   
 }
 
