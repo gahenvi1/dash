@@ -103,6 +103,18 @@ ui = function(request){
                   box(downloadButton("downloadData", "Download"), DTOutput("tbl_geral"), width = 12, title = "Planilha", solidHeader = TRUE, status = "info")
                 )
         ),
+        
+        tabItem(tabName = "progresso",
+                fluidRow(box(width = 20,textOutput(outputId = "gg1"),
+                             downloadButton('downloadPlot1', 'Download'),
+                             plotlyOutput(outputId = "gantt1", height = 600, width="100%")),
+                         
+                         
+                         box(width = 20,textOutput(outputId = "gg2"),
+                             downloadButton('downloadPlot2', 'Download'),
+                             plotlyOutput(outputId = "gantt2", height = 600, width="100%"))
+                         
+                )),
 
         #Alterar essa aba para ser referente a cada projeto em específico com infos do pipefy sobre ele ou filtragem de gerentes/areas/projetos de x maneira
         tabItem(tabName = "estudo-projetistas",

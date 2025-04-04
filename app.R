@@ -38,7 +38,7 @@ extrair_top_materias <- function(dataframe, gerente_da_hora){
 #source("~/Documents/ESTAT/Controle de Atrasos/pegando_dados_pipefy.R") # Extraindo o bd do pipefy, mas tenho medo de na hora de postar isso não funcionar, de qualuqer maneira, podemos rodar isso antes de postar o site
 
 
-
+df_nps <- read_excel("nps_csat_2025_21-03-2025.xlsx")
 banco_recem_atualizado <- read_excel("banco_controle_de_atrasos.xlsx")
 # names(banco_recem_atualizado) <- c("nome_projeto", "fase_projeto", "etiquetas", "data_vencimento", "ods", "gerente", "comercial", "gestor", "valor_projeto", "materias", "inicio_execucao", "fim_execucao", "tempo_total_execucao")
 # 
@@ -72,7 +72,8 @@ ui = function(request){
       menuItem("Progresso", tabName = "progresso", icon = icon("bars-progress")),
       menuItem("Estudo", icon = icon("chart-line"),
                menuSubItem("Projetistas", tabName = "estudo-projetistas"),
-               menuSubItem("Projetos", tabName = "estudo-projetos")),
+               menuSubItem("Projetos", tabName = "estudo-projetos"),
+               menuSubItem("NPS", tabName = "nps_csat_2025_21-03-2025")),
       menuItem("Upload banco", icon = icon("upload"),
                fileInput("upload", "Upload banco", accept = c(".csv", ".xlsx"), width = "100%")
       ),
@@ -81,25 +82,27 @@ ui = function(request){
     dashboardBody(
       
       tabItems(
+        # Aba Geral - Adicionados gráficos de ODS e capacidade ------------------
         tabItem(tabName = "geral",
-                
                 fluidRow(
                   valueBoxOutput("completos", width = 3),
                   valueBoxOutput("em_progresso", width = 3),
                   valueBoxOutput("atrasados", width = 3),
                   valueBoxOutput("nps", width = 3)
                 ),
-                
                 fluidRow(
-                  box(downloadButton("downloadData", "Download"),DTOutput("tbl_geral"), width = 12, solidHeader = TRUE, status = "info", title = "Planilha dos Projetos", collapsible = TRUE),
-                  box(plotlyOutput("fase_do_projeto"), width = 4,solidHeader = TRUE, status = "success", title = "Fase de Projeto", collapsible = TRUE),  
-                  box(plotlyOutput("pj_pf_projeto"), width = 4,solidHeader = TRUE, status = "success", title = "Tipo de Projeto", collapsible = TRUE),  
-                  box(plotlyOutput("tipos_de_projetos"), width = 12,solidHeader = TRUE, status = "primary", title = "Matérias", collapsible = TRUE),
-                  box(DTOutput("proximos_prazos"), width = 6,solidHeader = TRUE, status = "danger", title = "Próximos Prazos", collapsible = TRUE),
-                  box(DTOutput("projetos_atrasados"), width = 6,solidHeader = TRUE, status = "danger", title = "Projetos Atrasados", collapsible = TRUE)
-                  
-                  
-                ) ),
+                  box(plotlyOutput("fase_do_projeto"), width = 6, title = "Fase do Projeto", solidHeader = TRUE, status = "success"),
+                  box(plotlyOutput("pj_pf_projeto"), width = 6, title = "Tipo de Projeto", solidHeader = TRUE, status = "success"),
+                  box(plotlyOutput("ods_barras"), width = 12, title = "ODS", solidHeader = TRUE, status = "success"), 
+                  box(plotlyOutput("capacidade_funcionarios"), width = 12, title = "Capacidade", solidHeader = TRUE, status = "warning") 
+                ),
+                fluidRow(
+                  box(plotlyOutput("tipos_de_projetos"), width = 12, title = "Matérias", solidHeader = TRUE, status = "primary"),
+                  box(DTOutput("proximos_prazos"), width = 6, title = "Próximos Prazos", solidHeader = TRUE, status = "danger"),
+                  box(DTOutput("projetos_atrasados"), width = 6, title = "Projetos Atrasados", solidHeader = TRUE, status = "danger"),
+                  box(downloadButton("downloadData", "Download"), DTOutput("tbl_geral"), width = 12, title = "Planilha", solidHeader = TRUE, status = "info")
+                )
+        ),
         
         tabItem(tabName = "progresso",
                 fluidRow(box(width = 20,textOutput(outputId = "gg1"),
@@ -111,8 +114,8 @@ ui = function(request){
                              downloadButton('downloadPlot2', 'Download'),
                              plotlyOutput(outputId = "gantt2", height = 600, width="100%"))
                          
-                         )),
-
+                )),
+        
         #Alterar essa aba para ser referente a cada projeto em específico com infos do pipefy sobre ele ou filtragem de gerentes/areas/projetos de x maneira
         tabItem(tabName = "estudo-projetistas",
                 
@@ -120,7 +123,7 @@ ui = function(request){
                   box(DTOutput("principais_materias"), width = 12, status = "danger", title = "Principais Matérias"),
                   box(plotlyOutput("frequencia_projeto_x_gerente"), width = 12, status = "success", title = "Frequência de Projetos"),
                   box(plotlyOutput("linha_temporal_projetos_gerenciados"), width = 12 , status = "primary", title = "Linha Temporal Gerenciamento")
-                         
+                  
                 ) ),
         
         tabItem(tabName = "estudo-projetos",
@@ -136,13 +139,14 @@ ui = function(request){
                   tabPanel("Projetos", 
                            fluidRow(
                              box(plotlyOutput("atraso_projeto", height = "450px"), width = 12, status = "warning")
-                           )),
-                  tabPanel("ODS", 
-                           fluidRow(
-                             box(plotlyOutput("ods_barras", height = "450px"), width = 12, status = "warning")
                            ))
-                  )),
-                  
+                )),
+        tabItem(tabName = "nps_csat_2025_21-03-2025",
+                
+                fluidRow(
+                  box(downloadButton("downloadData", "Download"), DTOutput("tbl_nps"), width = 12, title = "Planilha", solidHeader = TRUE, status = "info")
+                )),
+        
         tabItem(tabName = "info-geral",
                 fluidRow(
                   box(width = 20,h2("Objetivo"),
@@ -150,7 +154,7 @@ ui = function(request){
                         "A diretoria de projetos da ESTAT trabalha com muitas demandas ao mesmo tempo. No interesse de implementar métricas e
                          fazer melhores análises dos próprios projetos, como também acessar principais informações sobre eles na fase de gerenciamento,
                          tornou-se necessário a criação desse aplicativo Shiny." ),
-
+                        
                         p("Fazem semestres que a diretoria anseia pelo desenvolvimento deste dashboard. Dessa maneira, foi no semestre de 2024.2 que finalmente
                         houve recursos(tempo) para começar a desenvolver melhores ferramentas, cujo intuito é agilizar e aprimorar as principais operações da diretoria."),
                         
@@ -202,6 +206,22 @@ ui = function(request){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 server <- function(input, output, session){
   
   
@@ -249,6 +269,56 @@ server <- function(input, output, session){
   })
   
   
+  # Gráfico de ODS 
+  output$ods_barras <- renderPlotly({
+    req(df_projetos())
+    
+    dados_ods <- df_projetos() %>%
+      mutate(ods = str_split(ods, ",\\s*")) %>%  
+      unnest(ods) %>%
+      filter(!is.na(ods) %>%
+               count(ods, name = "qtd"))
+    
+    plot_ly(dados_ods) %>%
+      add_bars(
+        x = ~reorder(ods, qtd),
+        y = ~qtd,
+        marker = list(color = "#1f77b4")
+      ) %>%
+      layout(
+        title = "Distribuição de ODS",
+        xaxis = list(title = ""),
+        yaxis = list(title = "Projetos")
+      )})
+  
+  # Novo gráfico de capacidade 
+  output$capacidade_funcionarios <- renderPlotly({
+    req(df_projetos())
+    
+    capacidade <- df_projetos() %>%
+      mutate(gerente = str_split(gerente, ",\\s*")) %>%
+      unnest(gerente) %>%  
+      group_by(gerente) %>%
+      summarise(
+        projetos = n()
+      ) %>%
+      ungroup()
+    
+    plot_ly(capacidade) %>%
+      add_bars(
+        x = ~gerente,
+        y = ~projetos,
+        name = "Ativos",
+        marker = list(color = "#FFA07A")
+      ) %>%
+      layout(
+        barmode = "overlay",
+        title = "Projetos x Capacidade por Gerente",
+        xaxis = list(title = ""),
+        yaxis = list(title = "Quantidade")
+      )
+  })
+  
   
   output$completos <- renderValueBox({
     
@@ -258,7 +328,7 @@ server <- function(input, output, session){
     valueBox(value = tags$p(NROW(projetos_executados), style = "font-size: 150%;"), 
              "Finalizados", icon = icon("stack-overflow"), color = "fuchsia")
   })
-    
+  
   output$em_progresso <- renderValueBox({
     
     projetos_executando <- df_projetos() %>%
@@ -315,6 +385,21 @@ server <- function(input, output, session){
   })
   
   
+  output$tbl_nps <- renderDT({
+    
+    banco <- df_nps() %>%
+      select(c(nome_projeto, inicio_execucao, data_vencimento, fim_execucao, gerente, pf_pj, materias, fase_projeto, atraso)) %>%
+      mutate(
+        data_vencimento =  format(ymd_hms(data_vencimento), "%d-%m-%Y"),
+        inicio_execucao = format(ymd_hms(inicio_execucao), "%d-%m-%Y"),
+        fim_execucao = format(ymd_hms(fim_execucao), "%d-%m-%Y")) 
+    
+    names(banco) <- c("Projeto", "Data de Início", "Data de Fim(Esperado)", "Data de Fim(Observado)", "Gerentes", "PF/PJ", "Matérias", "Fase", "Atraso(dias úteis)*")
+    
+    datatable(banco, options = list(pageLength = 12, language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")))
+    
+  })
+  
   
   output$fase_do_projeto <- renderPlotly({
     
@@ -330,7 +415,7 @@ server <- function(input, output, session){
     fig
     
   })
-    
+  
   output$pj_pf_projeto <- renderPlotly({
     
     df_fases <- df_projetos() %>% 
@@ -348,14 +433,14 @@ server <- function(input, output, session){
   
   output$tipos_de_projetos <- renderPlotly({
     
-   df_projetos() %>%
+    df_projetos() %>%
       mutate(topicos = str_split(materias, ",\\s*")) %>%
       unnest(topicos) %>%
       group_by(topicos) %>%
       summarise(n = n()) %>%
       arrange(desc(n)) %>%
-    
-    ggplot() +
+      
+      ggplot() +
       aes(x = fct_reorder(topicos, n, .desc=F), y = n) +
       geom_col(fill = "steelblue") +
       scale_fill_hue() +
@@ -408,7 +493,7 @@ server <- function(input, output, session){
       mutate(gerente = str_split(gerente, ",\\s*")) %>%
       unnest(gerente) %>%
       na.omit() 
-      
+    
     
     
     
@@ -467,7 +552,7 @@ server <- function(input, output, session){
   output$gg2 <- renderText({ paste("A seguinte Gantt Chart feita com ggplot2 para os projetos por vir(datas esperadas): ")})
   
   createPlot2 <- reactive({
-
+    
     tasks <- df_projetos() %>% 
       filter(fase_projeto %in% c("Caixa de entrada", "Execução", "Fase de espera")) %>%
       select("nome_projeto","inicio_execucao","data_vencimento", "gerente") %>%
@@ -535,7 +620,7 @@ server <- function(input, output, session){
   
   
   output$principais_materias <- renderDT({
-
+    
     
     gerentes <- unique(bd_gerentes()$gerente)
     
@@ -545,7 +630,7 @@ server <- function(input, output, session){
     df_ordem_materias <- do.call(rbind, lapply(df_ordem_materias, `length<-`, max(lengths(df_ordem_materias)))) %>%
       as.data.frame(stringAsFactors = FALSE) %>%
       arrange(-desc(V1))
-                             
+    
     
     
     names(df_ordem_materias) <- c("Gerente", "1", "2", "3")
@@ -557,33 +642,33 @@ server <- function(input, output, session){
   
   
   output$frequencia_projeto_x_gerente <- renderPlotly({
-  
-  df_freq_projetista <- df_projetos() %>%
-    mutate(gerente = str_split(gerente, ",\\s*")) %>%
-    unnest(gerente) %>%
-    group_by(gerente) %>%
-    summarise(n = n()) %>%
-    mutate(freq = round(n/sum(n), 2)) %>%
-    arrange(desc(n))
-  
-  
-  fig <- plot_ly(
-    df_freq_projetista,
-    y = ~n,
-    x = ~reorder(gerente, n),
-    color = ~gerente,
-    text = ~freq,
-    type = "bar",
-    marker = list(line = list(color = "black", width = 1.5))
-  )
-  
-  
-  fig <- fig %>% layout(title = "",
-                        xaxis = list(title = ""),
-                        yaxis = list(title = "")) 
-  
-  fig
-  
+    
+    df_freq_projetista <- df_projetos() %>%
+      mutate(gerente = str_split(gerente, ",\\s*")) %>%
+      unnest(gerente) %>%
+      group_by(gerente) %>%
+      summarise(n = n()) %>%
+      mutate(freq = round(n/sum(n), 2)) %>%
+      arrange(desc(n))
+    
+    
+    fig <- plot_ly(
+      df_freq_projetista,
+      y = ~n,
+      x = ~reorder(gerente, n),
+      color = ~gerente,
+      text = ~freq,
+      type = "bar",
+      marker = list(line = list(color = "black", width = 1.5))
+    )
+    
+    
+    fig <- fig %>% layout(title = "",
+                          xaxis = list(title = ""),
+                          yaxis = list(title = "")) 
+    
+    fig
+    
   })
   
   
@@ -701,8 +786,30 @@ server <- function(input, output, session){
   })
   
   
-  
-  
+  output$tbl_nps <- renderDT({
+    banco <- df_nps %>%
+      select(
+        `Código`,
+        `Título`,
+        `Fase atual`,
+        `Criador`,
+        `Criado em`,
+        `Atualizado em`,
+        `Vencido`,
+        `Qual o seu nome?`,
+        `O quão satisfeito(a) você diria que ficou com nossos serviços e atendimento?`,
+        `De 0 a 10, o quanto o(a) senhor(a) recomendaria os serviços da ESTAT Consultoria para alguém?`
+      )
+    names(banco) <- c(
+      "Código", "Título", "Fase Atual",
+      "Criador", "Criado em", "Atualizado em","Vencido",
+      "Nome", "Satisfação", "Recomendação"
+    )
+    datatable(banco,
+              options = list(pageLength = 12,
+                             language = list(url = "https://cdn.datatables.net/plug-ins/2.1.3/i18n/pt-BR.json")),
+              rownames = FALSE)
+  })
   
 }
 
